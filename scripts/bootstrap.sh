@@ -39,7 +39,7 @@ EDX_PLATFORM_PUBLIC_GITHUB_PROJECTBRANCH="oxa/master.fic"
 # There are cases where we want to override the edx-platform repository itself
 EDX_THEME_PUBLIC_GITHUB_ACCOUNTNAME="Microsoft"
 EDX_THEME_PUBLIC_GITHUB_PROJECTNAME="edx-theme"
-EDX_THEME_PUBLIC_GITHUB_PROJECTBRANCH="pilot"
+EDX_THEME_PUBLIC_GITHUB_PROJECTBRANCH="oxa/master.fic"
 EDX_THEME_NAME="default"
 
 # EdX Ansible
@@ -338,12 +338,6 @@ setup()
     done
     popd
 
-    #todo:100132 setup theme for onebox installs
-    #THEME_PATH="${OXA_PATH}/${EDX_THEME_PUBLIC_GITHUB_PROJECTNAME}"
-    #sync_repo $EDX_THEME_REPO $EDX_THEME_PUBLIC_GITHUB_PROJECTBRANCH "${THEME_PATH}/${EDX_THEME_NAME}"
-    #ln -s $THEME_PATH /edx/app/edxapp/themes
-    #chown -R edxapp:edxapp $THEME_PATH
-
     # in order to support retries, we should cleanup residue from previous ansible-bootstrap run
     TEMP_CONFIGURATION_PATH=/tmp/configuration
     if [[ -d $TEMP_CONFIGURATION_PATH ]]; then
@@ -435,6 +429,20 @@ edx_installation_playbook()
 {
   systemctl >/dev/null 2>&1
   exit_on_error "Single VM instance of EDX has a hard requirement on systemd and its systemctl functionality"
+
+  EDXAPP_COMPREHENSIVE_THEME_DIR=`echo $EDXAPP_COMPREHENSIVE_THEME_DIRS | tr -d [ | tr -d ] | tr -d " " | tr -d \"`
+  # When the comprehensive theming dirs is specified, edxapp:migrate task fails with :  ImproperlyConfigured: COMPREHENSIVE_THEME_DIRS
+  # As an interim mitigation, create the folder if the path specified is not under the edx-platform directory (where the default themes directory is)
+  if [[ -n "${EDXAPP_COMPREHENSIVE_THEME_DIR}" ]] && [[ ! -d "${EDXAPP_COMPREHENSIVE_THEME_DIR}" ]] ; then
+    # now check if the path specified is within the default edx-platform/themes directory
+    if [[ "${EDXAPP_COMPREHENSIVE_THEME_DIR}" == *"${EDX_PLATFORM_PUBLIC_GITHUB_PROJECTNAME}"* ]] ; then
+      log "'${EDXAPP_COMPREHENSIVE_THEME_DIR}' falls under the default theme directory. Skipping creation since the edx-platform clone will create it."
+    else
+      log "Creating comprehensive themeing directory at ${EDXAPP_COMPREHENSIVE_THEME_DIR}"
+      mkdir -p "${EDXAPP_COMPREHENSIVE_THEME_DIR}"
+      chown -R edxapp:edxapp "${EDXAPP_COMPREHENSIVE_THEME_DIR}"
+    fi
+  fi
 
   command="$ANSIBLE_PLAYBOOK -i localhost, -c local -e@$OXA_PLAYBOOK_CONFIG vagrant-${EDX_ROLE}.yml"
 
